@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const puppeteer = require("puppeteer");
-const { token, channelId } = require("./config.json");
-
+const { token, channelId, username, password } = require("./config.json");
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -11,17 +10,22 @@ const client = new Client({
     ]
 });
 
-client.on("ready", () => {
+client.on("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
-
-    setInterval(checkWebsite, 10000);
+    const [browser, page] = await login();
+    await getHours(browser, page);
 });
 
-async function checkWebsite() {
+
+
+async function login() {
     try {
         const browser = await puppeteer.launch();
         const page = await browser.newPage();
         await page.goto("https://www.leonard-de-vinci.net/");
+
+        // Wait for the login input field to appear
+        await page.waitForSelector("#login", { timeout: 5000 });
 
         if (page.url() === "https://www.leonard-de-vinci.net/") {
             await page.evaluate(() => {
@@ -32,7 +36,7 @@ async function checkWebsite() {
             });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await page.waitForSelector("#passwordInput", { timeout: 5000 });
 
         if (page.url().startsWith("https://adfs.devinci.fr/adfs/ls/")) {
             await page.evaluate(() => {
@@ -41,28 +45,36 @@ async function checkWebsite() {
             });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        sendMessage("Connected to Devinci Attendance Page");
 
-        await page.goto("https://www.leonard-de-vinci.net/student/presences/");
+        await page.goto("https://www.leonard-de-vinci.net/student/presences/", { timeout: 1000 });
+        await page.evaluate(() => {
+            var TrRows = document.querySelectorAll('tr');
+            for (var i = 0; i < TrRows.length; i++) {
+                var Time = TrRows[i].querySelector('td:first-child');
+                if (Time) {
+                    console.log(`Time for row ${i + 1}: ${Time.textContent.trim()}`);
+                }
+            }
+        });
+        console.log("Get tr and td");
 
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        return [browser, page];
 
-
-        const screenshotBuffer = await page.screenshot();
-
-        const channel = client.channels.cache.get(channelId);
-        if (channel) {
-            channel.send({
-                files: [{
-                    attachment: screenshotBuffer,
-                    name: "website_screenshot.png"
-                }]
-            });
-        }
-
-        await browser.close();
     } catch (error) {
-        console.error("Error while taking the website screenshot:", error.message);
+        console.error("Error while connecting to website:", error.message);
+    }
+}
+
+async function getHours(browser, page) {
+
+}
+
+
+function sendMessage(message) {
+    const channel = client.channels.cache.get(channelId);
+    if (channel) {
+        channel.send(message);
     }
 }
 
