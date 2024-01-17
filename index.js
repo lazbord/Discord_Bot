@@ -44,21 +44,26 @@ async function connectDuringHours(href) {
     const [browser, page] = await login();
     await page.goto(`https://www.leonard-de-vinci.net${href}`);
 
-    await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+    try {
+        await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }); // Increase timeout to 60 seconds
 
-    const recapCoursElement = await page.$("#recap_cours");
-    const originalH4Element = await recapCoursElement?.$eval('.panel-body h4', h4 => h4.textContent);
+        const recapCoursElement = await page.$("#recap_cours");
+        const originalH4Element = await recapCoursElement?.$eval('.panel-body h4', h4 => h4.textContent);
 
-    // Set an interval to check for presence every minute
-    const intervalId = setInterval(async () => {
-        await page.reload(); // Reload the page
-        const presenceElement = await page.$("#set-presence");
+        // Set an interval to check for presence every minute
+        const intervalId = setInterval(async () => {
+            await page.reload(); // Reload the page
+            const presenceElement = await page.$("#set-presence");
 
-        if (presenceElement) {
-            clearInterval(intervalId); // Stop checking once found
-            await sendChannelMessage(`L'appel pour le cours : ${originalH4Element} est ouverte ${MentionString}`);
-        }
-    }, 60000); // Check every minute
+            if (presenceElement) {
+                clearInterval(intervalId); // Stop checking once found
+                await sendChannelMessage(`L'appel pour le cours : ${originalH4Element} est ouverte ${MentionString}`);
+            }
+        }, 60000); // Check every minute
+    } catch (error) {
+        console.error("Navigation timeout:", error.message);
+        // Handle timeout error (e.g., retry or take appropriate action)
+    }
 }
 
 function isCurrentTimeBetween(startTime, endTime, currentTime) {
