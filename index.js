@@ -1,6 +1,8 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, User} = require("discord.js");
 const puppeteer = require("puppeteer");
-const { token, channelId, username, password } = require("./config.json");
+const { token, channelId, Username, Password } = require("./config.json");
+const {Browser} = require("puppeteer");
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -11,12 +13,14 @@ const client = new Client({
 });
 
 client.on("ready", async () => {
-    console.log(`Logged in as ${client.user.tag}`);
-    const [browser, page] = await login();
-    await getHours(browser, page);
+    try {
+        console.log(`Logged in as ${client.user.tag}`);
+        const [browser, page] = await login();
+        await GetHours(browser, page);
+    } catch (error) {
+        console.error("Error:", error.message);
+    }
 });
-
-
 
 async function login() {
     try {
@@ -24,58 +28,47 @@ async function login() {
         const page = await browser.newPage();
         await page.goto("https://www.leonard-de-vinci.net/");
 
-        // Wait for the login input field to appear
-        await page.waitForSelector("#login", { timeout: 5000 });
+        await page.type('#login', Username);
+        await page.click('#btn_next');
 
-        if (page.url() === "https://www.leonard-de-vinci.net/") {
-            await page.evaluate(() => {
-                if (document.getElementById("login") !== null) {
-                    document.getElementById("login").value = "lazare.bordereaux@edu.devinci.fr";
-                    document.getElementById("btn_next").click();
-                }
-            });
-        }
+        await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
-        await page.waitForSelector("#passwordInput", { timeout: 5000 });
+        await page.type('#passwordInput', Password);
+        await page.click('#submitButton');
 
-        if (page.url().startsWith("https://adfs.devinci.fr/adfs/ls/")) {
-            await page.evaluate(() => {
-                document.getElementById("passwordInput").value = "@oJm3Qqg4$kSr^xJ3B";
-                document.getElementById("submitButton").click();
-            });
-        }
+        await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
-        sendMessage("Connected to Devinci Attendance Page");
+        await page.goto("https://www.leonard-de-vinci.net/student/presences/");
 
-        await page.goto("https://www.leonard-de-vinci.net/student/presences/", { timeout: 1000 });
-        await page.evaluate(() => {
-            var TrRows = document.querySelectorAll('tr');
-            for (var i = 0; i < TrRows.length; i++) {
-                var Time = TrRows[i].querySelector('td:first-child');
-                if (Time) {
-                    console.log(`Time for row ${i + 1}: ${Time.textContent.trim()}`);
-                }
-            }
-        });
-        console.log("Get tr and td");
+        //console.log(await page.content());
 
         return [browser, page];
-
     } catch (error) {
-        console.error("Error while connecting to website:", error.message);
+        console.error("Error while taking the website screenshot:", error.message);
     }
 }
 
-async function getHours(browser, page) {
+async function GetHours(browser, page) {
+    const result = await page.evaluate(() => {
+        const TrRows = document.querySelectorAll('tr');
+        const times = [];
 
+        for (let i = 0; i < TrRows.length; i++) {
+            const Time = TrRows[i].querySelector('td:first-child');
+            if (Time) {
+                times.push(Time.textContent.trim());
+            }
+        }
+
+        return times;
+    });
+
+    // Log the results
+    result.forEach((time, index) => {
+        console.log(`Time for row ${index + 1}: ${time}`);
+    });
 }
 
 
-function sendMessage(message) {
-    const channel = client.channels.cache.get(channelId);
-    if (channel) {
-        channel.send(message);
-    }
-}
 
 client.login(token);
