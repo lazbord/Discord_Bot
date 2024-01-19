@@ -14,12 +14,19 @@ const client = new Client({
 
 let cachedTimes = null;
 
+let continueChecking = true;
+
 client.on("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
     await sendChannelMessage(`Hello, ${MentionString}!`);
     checkActiveTimeSlot();
-    setInterval(checkActiveTimeSlot, 30 * 1000);
+    setInterval(() => {
+        if (continueChecking) {
+            checkActiveTimeSlot();
+        }
+    }, 60000);
 });
+
 async function checkActiveTimeSlot() {
     if (cachedTimes === null) {
         console.log("Fetching times...");
@@ -35,16 +42,16 @@ async function checkActiveTimeSlot() {
 
     if (activeTimeSlot) {
         console.log(`Connecting during ${activeTimeSlot[0]} - ${activeTimeSlot[1]}`);
-        await connectDuringHours(activeTimeSlot[2]);
+        await CheckPresence(activeTimeSlot[2]);
     } else {
         console.log("No active time slot at the moment.");
     }
 }
-async function connectDuringHours(href) {
+async function CheckPresence(href) {
     const [browser, page] = await login();
-    await page.goto(`https://www.leonard-de-vinci.net${href}`);
 
     try {
+        await page.goto(`https://www.leonard-de-vinci.net${href}`);
         await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }); // Increase timeout to 60 seconds
 
         const recapCoursElement = await page.$("#recap_cours");
@@ -57,6 +64,7 @@ async function connectDuringHours(href) {
 
             if (presenceElement) {
                 clearInterval(intervalId); // Stop checking once found
+                continueChecking = false; // Stop the periodic checking
                 await sendChannelMessage(`L'appel pour le cours : ${originalH4Element} est ouverte ${MentionString}`);
             }
         }, 60000); // Check every minute
@@ -65,7 +73,6 @@ async function connectDuringHours(href) {
         // Handle timeout error (e.g., retry or take appropriate action)
     }
 }
-
 function isCurrentTimeBetween(startTime, endTime, currentTime) {
     return startTime <= currentTime && currentTime <= endTime;
 }
